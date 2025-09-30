@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スライムマージディフェンス・インフィニティ</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #1e3a8a; /* bg-blue-900 */
+            touch-action: none;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 420px;
+            height: 100vh;
+            max-height: 900px;
+            background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        
+        .health-bar-container {
+            width: 100%;
+            background-color: rgba(0,0,0,0.3);
+            border-radius: 9999px;
+            height: 24px;
+            margin-bottom: 8px;
+            border: 2px solid #1e3a8a;
+            position: relative;
+            padding: 2px;
+        }
+        
+        #player-health-bar {
+            background: linear-gradient(to right, #4ade80, #16a34a);
+            transition: width 0.3s ease-in-out;
+        }
+
+        #player-health-text {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+        }
+
+        .progress-bar-container { width: 100%; background-color: rgba(0,0,0,0.2); border-radius: 9999px; height: 18px; margin-bottom: 8px; border: 2px solid white; }
+        .progress-bar { background-color: #facc15; transition: width 0.3s ease-in-out; }
+        .battle-area { flex-grow: 1; background: url('https://www.transparenttextures.com/patterns/cubes.png'), linear-gradient(180deg, #2563eb 0%, #1e40af 100%); background-blend-mode: overlay; border-radius: 12px; margin-bottom: 8px; position: relative; overflow: hidden; border: 4px solid #1e3a8a; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        .grid-label { font-size: 0.7rem; color: white; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); margin-left: 8px; margin-bottom: 2px; }
+        .attack-area, .standby-area { display: grid; gap: 6px; background-color: rgba(0,0,0,0.2); border-radius: 12px; padding: 6px; border: 3px solid #1e3a8a; position: relative; }
+        .attack-area { grid-template-columns: repeat(4, 1fr); height: 70px; margin-bottom: 6px; }
+        .standby-area { grid-template-columns: repeat(4, 1fr); height: 140px; }
+        .grid-cell { background-color: rgba(255,255,255,0.1); border-radius: 8px; position: relative; transition: background-color 0.2s; }
+        .grid-cell.highlight { background-color: rgba(251, 191, 36, 0.5); }
+        .slime, .monster { position: absolute; width: 45px; height: 45px; cursor: grab; transition: transform 0.2s ease-out, top 0.3s ease-out, left 0.3s ease-out; display: flex; align-items: center; justify-content: center; z-index: 100; }
+        .slime.dragging { transform: scale(1.2); z-index: 1000; cursor: grabbing; pointer-events: none; }
+        .slime-body { width: 80%; height: 80%; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; position: relative; border: 3px solid rgba(0,0,0,0.5); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .slime-eyes { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); display: flex; gap: 8px; }
+        .slime-eye { width: 6px; height: 6px; background-color: black; border-radius: 50%; }
+        .weapon { position: absolute; font-size: 22px; }
+        .monster { width: 50px; height: 50px; background-color: #dc2626; border-radius: 12px; border: 3px solid #7f1d1d; }
+        .projectile { position: absolute; width: 10px; height: 10px; background-color: #fef08a; border-radius: 50%; box-shadow: 0 0 8px #fef08a; transition: top 0.3s linear, left 0.3s linear; z-index: 50; }
+        .hit-effect { position: absolute; width: 30px; height: 30px; background-color: white; border-radius: 50%; transform: scale(0); animation: hit 0.2s ease-out; }
+        @keyframes hit { from { transform: scale(0); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+        .merge-effect { position: absolute; width: 80px; height: 80px; background-color: #fef08a; border-radius: 50%; transform: scale(0); animation: merge 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28); z-index: 500; }
+        @keyframes merge { 0% { transform: scale(0); opacity: 0.8; } 50% { transform: scale(1.2); opacity: 0.5; } 100% { transform: scale(0); opacity: 0; } }
+        .coin-icon { display: inline-block; width: 20px; height: 20px; background-color: #facc15; border-radius: 50%; color: #ca8a04; text-align: center; font-weight: bold; line-height: 20px; border: 2px solid white; margin-right: 4px; }
+        .coin-drop { position: absolute; color: #facc15; font-weight: bold; text-shadow: 1px 1px 0 #ca8a04; animation: coin-anim 1s ease-out forwards; pointer-events: none; z-index: 1500; display: flex; align-items: center; }
+        @keyframes coin-anim { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-50px) scale(0.8); opacity: 0; } }
+        #message-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.8); background-color: rgba(0,0,0,0.75); color: white; padding: 24px 32px; border-radius: 16px; text-align: center; z-index: 2000; opacity: 0; visibility: hidden; transition: opacity 0.3s, transform 0.3s, visibility 0.3s; }
+        #message-box.show { opacity: 1; transform: translate(-50%, -50%) scale(1); visibility: visible; }
+        #speed-btn.active { background-color: #facc15; color: #ca8a04; }
+        .shop-upgrade-btn {
+            background-color: rgba(0,0,0,0.2); border: 2px solid #1e3a8a; color: white;
+            font-size: 0.75rem; padding: 4px 6px; border-radius: 8px; transition: background-color 0.2s, transform 0.2s;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; flex-grow: 1;
+        }
+        .shop-upgrade-btn:hover:not(:disabled) { background-color: rgba(0,0,0,0.4); transform: translateY(-2px); }
+        .shop-upgrade-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .shop-upgrade-btn .price { font-size: 0.7rem; display: flex; align-items: center; }
+        .shop-upgrade-btn .level { font-size: 0.6rem; color: #a5b4fc; }
+        .shop-upgrade-btn .icon { font-size: 1.5rem; }
+        #fever-timers {
+            position: absolute;
+            top: 40px;
+            left: 12px;
+            background-color: rgba(0,0,0,0.5);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            z-index: 100;
+            display: none; /* Initially hidden */
+        }
+
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="game-container">
+        <!-- Player Health -->
+        <div class="health-bar-container">
+            <div id="player-health-bar" class="h-full rounded-full"></div>
+            <span id="player-health-text">100 / 100</span>
+        </div>
+        
+        <!-- Fever Timers Display -->
+        <div id="fever-timers"></div>
+        
+        <!-- 上部UIエリア -->
+        <div class="flex items-center justify-between mb-1">
+            <div id="status" class="bg-blue-900 text-white font-bold py-1 px-3 rounded-full text-sm">
+                SCORE: <span id="score">0</span>
+            </div>
+            <div class="flex items-center gap-2">
+                 <button id="reset-btn" class="bg-red-800 text-white font-bold py-1 px-3 rounded-full transition-colors duration-200 text-sm">🔄</button>
+                <div id="currency" class="bg-blue-900 text-white font-bold py-1 px-3 rounded-full flex items-center text-sm">
+                    <span class="coin-icon" style="width:18px;height:18px;line-height:18px;">C</span>
+                    <span id="coin-amount">100</span>
+                </div>
+                <button id="speed-btn" class="bg-blue-900 text-white font-bold py-1 px-3 rounded-full transition-colors duration-200 text-sm">1x</button>
+            </div>
+        </div>
+
+        <!-- 戦闘エリア -->
+        <div id="battle-area" class="battle-area"></div>
+
+        <!-- 攻撃エリア -->
+        <div class="grid-label">⚔️ 攻撃エリア</div>
+        <div id="attack-area" class="attack-area"></div>
+
+        <!-- 待機エリア -->
+        <div class="grid-label">🏠 待機・合成エリア</div>
+        <div id="standby-area" class="standby-area"></div>
+        
+        <!-- Store & Upgrades -->
+        <div class="mt-2 flex gap-2">
+            <!-- Store -->
+            <div class="w-1/2">
+                <div class="grid-label text-center">🏪 ストア</div>
+                <div class="flex gap-1">
+                    <button id="buy-health-potion" class="shop-upgrade-btn"><span class="icon">❤️‍🩹</span>HP回復<span class="price"><span class="coin-icon" style="width:14px;height:14px;line-height:14px;font-size:10px;">C</span><span id="health-potion-price">50</span></span></button>
+                    <button id="buy-coin-fever" class="shop-upgrade-btn"><span class="icon">💰</span>コインx2<span class="price"><span class="coin-icon" style="width:14px;height:14px;line-height:14px;font-size:10px;">C</span><span id="coin-fever-price">300</span></span></button>
+                    <button id="buy-speed-fever" class="shop-upgrade-btn"><span class="icon">⚡</span>速度x2<span class="price"><span class="coin-icon" style="width:14px;height:14px;line-height:14px;font-size:10px;">C</span><span id="speed-fever-price">300</span></span></button>
+                </div>
+            </div>
+            <!-- Upgrades -->
+            <div class="w-1/2">
+                <div class="grid-label text-center">🚀 アップグレード</div>
+                 <div class="flex gap-2">
+                    <button id="upgrade-attack" class="shop-upgrade-btn"><span class="icon">⚔️</span>攻撃力<span class="price"><span class="coin-icon" style="width:14px;height:14px;line-height:14px;font-size:10px;">C</span><span id="attack-upgrade-price">100</span></span><span id="attack-upgrade-level" class="level">Lv.1</span></button>
+                    <button id="upgrade-regen" class="shop-upgrade-btn"><span class="icon">🌿</span>自然回復<span class="price"><span class="coin-icon" style="width:14px;height:14px;line-height:14px;font-size:10px;">C</span><span id="regen-upgrade-price">200</span></span><span id="regen-upgrade-level" class="level">Lv.0</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 下部UIエリア (ショップ) -->
+        <div class="mt-2">
+            <button id="buy-slime-btn" class="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-extrabold py-2 px-4 rounded-xl shadow-lg transform hover:scale-105 transition-transform duration-200 text-md flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" /></svg>
+                新しいスライム (<span class="coin-icon" style="width:18px;height:18px;line-height:18px;">C</span><span id="slime-price">10</span>)
+            </button>
+        </div>
+        
+        <!-- メッセージボックス -->
+        <div id="message-box">
+            <h2 id="message-title" class="text-2xl font-bold mb-2"></h2>
+            <p id="message-text"></p>
+            <div class="flex gap-4 justify-center">
+                 <button id="message-button-cancel" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg" style="display: none;">キャンセル</button>
+                 <button id="message-button" class="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg">OK</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements ---
+            const dom = {
+                battleArea: document.getElementById('battle-area'),
+                attackArea: document.getElementById('attack-area'),
+                standbyArea: document.getElementById('standby-area'),
+                coinAmountEl: document.getElementById('coin-amount'),
+                slimePriceEl: document.getElementById('slime-price'),
+                buySlimeBtn: document.getElementById('buy-slime-btn'),
+                scoreEl: document.getElementById('score'),
+                messageBox: document.getElementById('message-box'),
+                messageTitle: document.getElementById('message-title'),
+                messageText: document.getElementById('message-text'),
+                messageButton: document.getElementById('message-button'),
+                messageButtonCancel: document.getElementById('message-button-cancel'),
+                speedBtn: document.getElementById('speed-btn'),
+                resetBtn: document.getElementById('reset-btn'),
+                playerHealthBar: document.getElementById('player-health-bar'),
+                playerHealthText: document.getElementById('player-health-text'),
+                feverTimersEl: document.getElementById('fever-timers'),
+                // Store
+                buyHealthPotionBtn: document.getElementById('buy-health-potion'),
+                healthPotionPriceEl: document.getElementById('health-potion-price'),
+                buyCoinFeverBtn: document.getElementById('buy-coin-fever'),
+                coinFeverPriceEl: document.getElementById('coin-fever-price'),
+                buySpeedFeverBtn: document.getElementById('buy-speed-fever'),
+                speedFeverPriceEl: document.getElementById('speed-fever-price'),
+                // Upgrades
+                upgradeAttackBtn: document.getElementById('upgrade-attack'),
+                attackUpgradePriceEl: document.getElementById('attack-upgrade-price'),
+                attackUpgradeLevelEl: document.getElementById('attack-upgrade-level'),
+                upgradeRegenBtn: document.getElementById('upgrade-regen'),
+                regenUpgradePriceEl: document.getElementById('regen-upgrade-price'),
+                regenUpgradeLevelEl: document.getElementById('regen-upgrade-level'),
+            };
+
+            // --- Game Config ---
+            const ATTACK_GRID_SIZE = 4;
+            const STANDBY_GRID_SIZE = 8;
+            const SLIME_TYPES = [
+                { level: 1, color: '#60a5fa', weapon: '', attack: 5, attackSpeed: 1400 },
+                { level: 2, color: '#81c784', weapon: '🗡️', attack: 12, attackSpeed: 1300 },
+                { level: 3, color: '#ffd54f', weapon: '🔨', attack: 25, attackSpeed: 1500 },
+                { level: 4, color: '#ff8a65', weapon: '🏹', attack: 40, attackSpeed: 1100 },
+                { level: 5, color: '#ba68c8', weapon: '✨', attack: 70, attackSpeed: 900 },
+                { level: 6, color: '#4dd0e1', weapon: '❄️', attack: 100, attackSpeed: 1700 },
+                { level: 7, color: '#f06292', weapon: '❤️‍🔥', attack: 150, attackSpeed: 1200 },
+                { level: 8, color: '#a1887f', weapon: '💣', attack: 250, attackSpeed: 2300 },
+                { level: 9, color: '#ffffff', weapon: '🌟', attack: 400, attackSpeed: 1000 },
+                { level: 10, color: '#facc15', weapon: '👑', attack: 750, attackSpeed: 1500 },
+            ];
+             const MONSTER_TYPES = [
+                { name: 'ゴブリン', hp: 80, speed: 0.25, color: '#a3e635', shape: '50%' },
+                { name: 'オーク', hp: 200, speed: 0.2, color: '#78716c', shape: '15%' },
+                { name: 'スパイダー', hp: 120, speed: 0.35, color: '#262626', shape: '50%' },
+                { name: 'ゴーレム', hp: 500, speed: 0.15, color: '#a8a29e', shape: '5%' },
+                { name: 'ドラゴン', hp: 1500, speed: 0.3, color: '#ef4444', shape: '20%' },
+            ];
+            
+            // --- Game State ---
+            let gameState;
+
+            function getNewGameState() {
+                return {
+                    coins: 100,
+                    baseSlimePrice: 10,
+                    slimes: [],
+                    monsters: [],
+                    attackGrid: Array(ATTACK_GRID_SIZE).fill(null),
+                    standbyGrid: Array(STANDBY_GRID_SIZE).fill(null),
+                    score: 0,
+                    enemyLevel: 1,
+                    spawnTimer: 0,
+                    spawnInterval: 3000,
+                    nextSlimeId: 0,
+                    nextMonsterId: 0,
+                    gameSpeed: 1,
+                    playerHealth: 100,
+                    maxPlayerHealth: 100,
+                    coinFeverTimer: 0,
+                    speedFeverTimer: 0,
+                    upgrades: {
+                        attack: { level: 1, price: 100, multiplier: 1 },
+                        regen: { level: 0, price: 200, amount: 0.1 },
+                    },
+                    store: {
+                        healthPotion: { price: 50, amount: 25 },
+                        coinFever: { price: 300, duration: 30000 },
+                        speedFever: { price: 300, duration: 30000 },
+                    }
+                };
+            }
+            
+            // --- Drag & Drop State ---
+            let draggedSlimeEl = null;
+            let draggedSlimeData = null;
+
+            // --- Initialization ---
+            function init() {
+                if (!loadGame()) {
+                    gameState = getNewGameState();
+                    spawnInitialSlimes();
+                }
+                createGrids();
+                reconstructGrids();
+                renderAllSlimesFromState();
+                setupEventListeners();
+                updateUI();
+                gameState.gameLoopInterval = setInterval(gameLoop, 1000 / 30);
+                setInterval(healthRegenLoop, 1000); 
+                setInterval(saveGame, 5000); // Auto-save
+            }
+            
+            function showMessage(title, text, buttonText = "OK", callback = null, showCancel = false) {
+                gameState.isPaused = true;
+                dom.messageTitle.textContent = title;
+                dom.messageText.textContent = text;
+                dom.messageButton.textContent = buttonText;
+                
+                dom.messageButtonCancel.style.display = showCancel ? 'block' : 'none';
+
+                const newOkButton = dom.messageButton.cloneNode(true);
+                dom.messageButton.parentNode.replaceChild(newOkButton, dom.messageButton);
+                dom.messageButton = newOkButton;
+                
+                const newCancelButton = dom.messageButtonCancel.cloneNode(true);
+                dom.messageButtonCancel.parentNode.replaceChild(newCancelButton, dom.messageButtonCancel);
+                dom.messageButtonCancel = newCancelButton;
+
+                const close = () => {
+                    dom.messageBox.classList.remove('show');
+                    gameState.isPaused = false;
+                }
+
+                dom.messageButton.addEventListener('click', () => {
+                    close();
+                    if (callback) callback();
+                }, { once: true });
+                
+                dom.messageButtonCancel.addEventListener('click', () => {
+                    close();
+                }, { once: true });
+                
+                dom.messageBox.classList.add('show');
+            }
+
+            // --- Grid & Slime Rendering ---
+            function createGrids() {
+                dom.attackArea.innerHTML = '';
+                dom.standbyArea.innerHTML = '';
+                for (let i = 0; i < ATTACK_GRID_SIZE; i++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('grid-cell');
+                    cell.dataset.index = i;
+                    cell.dataset.grid = 'attack';
+                    dom.attackArea.appendChild(cell);
+                }
+                for (let i = 0; i < STANDBY_GRID_SIZE; i++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('grid-cell');
+                    cell.dataset.index = i;
+                    cell.dataset.grid = 'standby';
+                    dom.standbyArea.appendChild(cell);
+                }
+            }
+
+            function reconstructGrids() {
+                gameState.attackGrid = Array(ATTACK_GRID_SIZE).fill(null);
+                gameState.standbyGrid = Array(STANDBY_GRID_SIZE).fill(null);
+                gameState.slimes.forEach(slime => {
+                    if (slime.gridType === 'attack') {
+                        gameState.attackGrid[slime.gridIndex] = slime;
+                    } else {
+                        gameState.standbyGrid[slime.gridIndex] = slime;
+                    }
+                });
+            }
+            
+            function renderAllSlimesFromState() {
+                document.querySelectorAll('.slime').forEach(el => el.remove());
+                gameState.slimes.forEach(slime => renderSlime(slime));
+            }
+            
+            function spawnInitialSlimes() { addSlime(1, 'standby', 0); addSlime(1, 'standby', 1); }
+
+            function addSlime(level, gridType, gridIndex) {
+                const grid = gameState[gridType + 'Grid'];
+                if (gridIndex === null) gridIndex = grid.findIndex(s => s === null);
+                if (gridIndex === -1) { showMessage("おっと！", "スライムを置くスペースがありません。", "OK"); return false; }
+                const slimeData = { id: gameState.nextSlimeId++, level: level, gridType: gridType, gridIndex: gridIndex, attackCooldown: 0, };
+                gameState.slimes.push(slimeData);
+                grid[gridIndex] = slimeData;
+                renderSlime(slimeData);
+                return true;
+            }
+
+            function renderSlime(slimeData) {
+                const type = SLIME_TYPES[slimeData.level - 1];
+                const parentArea = slimeData.gridType === 'attack' ? dom.attackArea : dom.standbyArea;
+                const slimeEl = document.createElement('div');
+                slimeEl.classList.add('slime');
+                slimeEl.dataset.id = slimeData.id;
+                slimeEl.innerHTML = `<div class="slime-body" style="background-color: ${type.color};"><div class="slime-eyes"><div class="slime-eye"></div><div class="slime-eye"></div></div></div><div class="weapon">${type.weapon}</div>`;
+                slimeEl.addEventListener('mousedown', onDragStart);
+                slimeEl.addEventListener('touchstart', onDragStart, { passive: false });
+                parentArea.appendChild(slimeEl);
+                snapSlimeToCell(slimeEl, slimeData.gridType, slimeData.gridIndex);
+            }
+            
+            // --- Drag & Drop --- (logic is unchanged)
+            function onDragStart(e) {
+                if (e.target.closest('.slime')) {
+                    e.preventDefault();
+                    draggedSlimeEl = e.target.closest('.slime');
+                    const slimeId = parseInt(draggedSlimeEl.dataset.id);
+                    draggedSlimeData = gameState.slimes.find(s => s.id === slimeId);
+                    draggedSlimeEl.classList.add('dragging');
+                    const gameContainer = document.querySelector('.game-container');
+                    const startRect = draggedSlimeEl.getBoundingClientRect();
+                    const gameContainerRect = gameContainer.getBoundingClientRect();
+                    gameContainer.appendChild(draggedSlimeEl);
+                    draggedSlimeEl.style.position = 'absolute';
+                    draggedSlimeEl.style.left = `${startRect.left - gameContainerRect.left}px`;
+                    draggedSlimeEl.style.top = `${startRect.top - gameContainerRect.top}px`;
+                    document.addEventListener('mousemove', onDragging);
+                    document.addEventListener('mouseup', onDragEnd);
+                    document.addEventListener('touchmove', onDragging);
+                    document.addEventListener('touchend', onDragEnd);
+                }
+            }
+
+            function onDragging(e) {
+                if (!draggedSlimeEl) return;
+                e.preventDefault();
+                const touch = e.touches ? e.touches[0] : e;
+                const gameContainerRect = document.querySelector('.game-container').getBoundingClientRect();
+                let x = touch.clientX - gameContainerRect.left - (draggedSlimeEl.offsetWidth / 2);
+                let y = touch.clientY - gameContainerRect.top - (draggedSlimeEl.offsetHeight / 2);
+                draggedSlimeEl.style.left = `${x}px`;
+                draggedSlimeEl.style.top = `${y}px`;
+                const targetCell = getCellFromPosition(touch.clientX, touch.clientY);
+                document.querySelectorAll('.grid-cell').forEach(c => c.classList.remove('highlight'));
+                if (targetCell) targetCell.classList.add('highlight');
+            }
+
+            function onDragEnd(e) {
+                if (!draggedSlimeEl) return;
+                document.querySelectorAll('.grid-cell').forEach(c => c.classList.remove('highlight'));
+                const touch = e.changedTouches ? e.changedTouches[0] : e;
+                const endCellEl = getCellFromPosition(touch.clientX, touch.clientY);
+                const startGridType = draggedSlimeData.gridType;
+                const startCellIndex = draggedSlimeData.gridIndex;
+
+                if (endCellEl) {
+                    const endGridType = endCellEl.dataset.grid;
+                    const endCellIndex = parseInt(endCellEl.dataset.index);
+                    const targetSlimeData = gameState[endGridType + 'Grid'][endCellIndex];
+                    if (targetSlimeData && targetSlimeData.id !== draggedSlimeData.id && targetSlimeData.level === draggedSlimeData.level && draggedSlimeData.level < SLIME_TYPES.length) {
+                        mergeSlimes(draggedSlimeData, targetSlimeData);
+                    } else if (!targetSlimeData) {
+                        moveSlime(draggedSlimeData, endGridType, endCellIndex);
+                    } else { snapToOriginalPosition(); }
+                } else { snapToOriginalPosition(); }
+                
+                function snapToOriginalPosition() {
+                    const parentArea = startGridType === 'attack' ? dom.attackArea : dom.standbyArea;
+                    parentArea.appendChild(draggedSlimeEl);
+                    snapSlimeToCell(draggedSlimeEl, startGridType, startCellIndex);
+                }
+                draggedSlimeEl.classList.remove('dragging');
+                draggedSlimeEl = null; draggedSlimeData = null;
+                document.removeEventListener('mousemove', onDragging);
+                document.removeEventListener('mouseup', onDragEnd);
+                document.removeEventListener('touchmove', onDragging);
+                document.removeEventListener('touchend', onDragEnd);
+            }
+            
+            function getCellFromPosition(x, y) { return document.elementsFromPoint(x, y).find(el => el.classList.contains('grid-cell')); }
+
+            function snapSlimeToCell(slimeEl, gridType, cellIndex) {
+                const parentArea = gridType === 'attack' ? dom.attackArea : dom.standbyArea;
+                if (!parentArea || !parentArea.children[cellIndex]) return;
+                const cell = parentArea.children[cellIndex];
+                slimeEl.style.position = 'absolute';
+                slimeEl.style.left = `${cell.offsetLeft}px`;
+                slimeEl.style.top = `${cell.offsetTop}px`;
+            }
+            
+            function moveSlime(slimeData, toGridType, toIndex) {
+                gameState[slimeData.gridType + 'Grid'][slimeData.gridIndex] = null;
+                gameState[toGridType + 'Grid'][toIndex] = slimeData;
+                slimeData.gridType = toGridType; slimeData.gridIndex = toIndex;
+                const slimeEl = document.querySelector(`.slime[data-id='${slimeData.id}']`);
+                const toParentArea = toGridType === 'attack' ? dom.attackArea : dom.standbyArea;
+                toParentArea.appendChild(slimeEl);
+                snapSlimeToCell(slimeEl, toGridType, toIndex);
+            }
+
+            function mergeSlimes(slime1, slime2) {
+                const newLevel = slime1.level + 1;
+                const parentArea = slime2.gridType === 'attack' ? dom.attackArea : dom.standbyArea;
+                const cell = parentArea.children[slime2.gridIndex];
+                const effect = document.createElement('div');
+                effect.classList.add('merge-effect');
+                effect.style.left = `${cell.offsetLeft + cell.offsetWidth/2 - 40}px`;
+                effect.style.top = `${cell.offsetTop + cell.offsetHeight/2 - 40}px`;
+                parentArea.appendChild(effect);
+                setTimeout(() => effect.remove(), 400);
+                document.querySelector(`.slime[data-id='${slime1.id}']`).remove();
+                document.querySelector(`.slime[data-id='${slime2.id}']`).remove();
+                gameState.slimes = gameState.slimes.filter(s => s.id !== slime1.id && s.id !== slime2.id);
+                reconstructGrids();
+                addSlime(newLevel, slime2.gridType, slime2.gridIndex);
+            }
+            
+            function calculateSlimePrice() { return gameState.baseSlimePrice + Math.floor(gameState.slimes.length * 2.5); }
+            
+            // --- Game Loop & Core Logic ---
+            function gameLoop() {
+                if (gameState.isPaused) return;
+                const deltaTime = 1000 / 30;
+
+                for (let i = 0; i < gameState.gameSpeed; i++) {
+                    // Fever Timers
+                    if (gameState.coinFeverTimer > 0) gameState.coinFeverTimer -= deltaTime;
+                    if (gameState.speedFeverTimer > 0) gameState.speedFeverTimer -= deltaTime;
+                    updateFeverTimersUI();
+                    
+                    // Monster Spawning
+                    gameState.spawnTimer += deltaTime;
+                    if (gameState.spawnTimer >= gameState.spawnInterval) {
+                        spawnMonster();
+                        gameState.spawnTimer = 0;
+                        gameState.spawnInterval = Math.max(500, 3000 - gameState.enemyLevel * 25);
+                        gameState.enemyLevel += 0.1; // Slower increase
+                    }
+                    
+                    // Slime Attack
+                    gameState.attackGrid.forEach(slime => {
+                        if (!slime) return;
+                        slime.attackCooldown -= deltaTime;
+                        if (slime.attackCooldown <= 0 && gameState.monsters.length > 0) {
+                            const type = SLIME_TYPES[slime.level - 1];
+                            let cooldown = type.attackSpeed;
+                            if (gameState.speedFeverTimer > 0) cooldown /= 2;
+                            slime.attackCooldown = cooldown;
+                            attack(slime);
+                        }
+                    });
+
+                    // Monster Movement
+                    gameState.monsters.forEach(monster => {
+                        monster.x -= monster.speed;
+                        const monsterEl = document.querySelector(`.monster[data-id='${monster.id}']`);
+                        if (monsterEl) monsterEl.style.left = `${monster.x}px`;
+                        if (monster.x < -50) {
+                            playerTakeDamage(monster);
+                            monster.hp = 0; // Mark for removal
+                        }
+                    });
+                    gameState.monsters = gameState.monsters.filter(m => m.hp > 0);
+                }
+            }
+
+            function spawnMonster() {
+                const battleRect = dom.battleArea.getBoundingClientRect();
+                
+                let availableTypes = [MONSTER_TYPES[0]]; // ゴブリン
+                if (gameState.enemyLevel > 5) availableTypes.push(MONSTER_TYPES[1]); // オーク
+                if (gameState.enemyLevel > 10) availableTypes.push(MONSTER_TYPES[2]); // スパイダー
+                if (gameState.enemyLevel > 15) availableTypes.push(MONSTER_TYPES[3]); // ゴーレム
+                if (gameState.enemyLevel > 25) availableTypes.push(MONSTER_TYPES[4]); // ドラゴン (赤い敵)
+
+                const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+                
+                const monsterData = {
+                    id: gameState.nextMonsterId++, ...type,
+                    hp: type.hp * Math.pow(1.15, gameState.enemyLevel - 1),
+                    speed: type.speed * (1 + (gameState.enemyLevel-1) * 0.03),
+                    x: battleRect.width, y: Math.random() * (battleRect.height - 60),
+                };
+                monsterData.maxHp = monsterData.hp;
+                gameState.monsters.push(monsterData);
+                const monsterEl = document.createElement('div');
+                monsterEl.classList.add('monster');
+                monsterEl.dataset.id = monsterData.id;
+                monsterEl.style.backgroundColor = monsterData.color; monsterEl.style.borderRadius = monsterData.shape;
+                monsterEl.style.left = `${monsterData.x}px`; monsterEl.style.top = `${monsterData.y}px`;
+                monsterEl.innerHTML = `<div class="absolute top-[-15px] w-full text-center text-white text-xs">${Math.round(monsterData.hp)}</div>`;
+                dom.battleArea.appendChild(monsterEl);
+            }
+            
+            function playerTakeDamage(monster) {
+                const damage = Math.ceil(monster.maxHp / 20);
+                gameState.playerHealth = Math.max(0, gameState.playerHealth - damage);
+                updateUI();
+                const monsterEl = document.querySelector(`.monster[data-id='${monster.id}']`);
+                if(monsterEl) monsterEl.remove();
+                if (gameState.playerHealth <= 0) gameOver();
+            }
+            
+            function healthRegenLoop() {
+                if(gameState.isPaused || gameState.upgrades.regen.level === 0) return;
+                const regenAmount = gameState.upgrades.regen.level * gameState.upgrades.regen.amount;
+                gameState.playerHealth = Math.min(gameState.maxPlayerHealth, gameState.playerHealth + regenAmount);
+                updateUI();
+            }
+
+            function gameOver() {
+                clearInterval(gameState.gameLoopInterval);
+                showMessage("ゲームオーバー", `あなたのスコア: ${Math.floor(gameState.score)}`, "リトライ", () => {
+                    resetGame(false); // don't ask for confirmation on game over
+                });
+            }
+
+            function attack(slime) {
+                const slimeEl = document.querySelector(`.slime[data-id='${slime.id}']`);
+                if (!slimeEl) return;
+                let target = gameState.monsters.reduce((prev, curr) => (prev && prev.x < curr.x) ? prev : curr, null);
+                if (target) {
+                    const type = SLIME_TYPES[slime.level - 1];
+                    const projectile = document.createElement('div');
+                    projectile.classList.add('projectile');
+                    const slimeRect = slimeEl.getBoundingClientRect(), battleRect = dom.battleArea.getBoundingClientRect();
+                    const startX = slimeRect.left - battleRect.left + slimeRect.width / 2, startY = slimeRect.top - battleRect.top + slimeRect.height / 2;
+                    projectile.style.left = `${startX}px`; projectile.style.top = `${startY}px`;
+                    dom.battleArea.appendChild(projectile);
+                    const targetEl = document.querySelector(`.monster[data-id='${target.id}']`);
+                    if (!targetEl) { projectile.remove(); return; }
+                    const targetRect = targetEl.getBoundingClientRect();
+                    const endX = targetRect.left - battleRect.left + targetRect.width / 2, endY = targetRect.top - battleRect.top + targetRect.height / 2;
+                    projectile.animate([{ transform: `translate(0, 0)` }, { transform: `translate(${endX - startX}px, ${endY - startY}px)` }], { duration: 200, easing: 'linear' })
+                    .onfinish = () => {
+                        projectile.remove();
+                        if(gameState.monsters.some(m => m.id === target.id)) monsterHit(target.id, type.attack * gameState.upgrades.attack.multiplier);
+                    };
+                }
+            }
+            
+            function monsterHit(monsterId, damage) {
+                const monster = gameState.monsters.find(m => m.id === monsterId);
+                if (!monster) return;
+                monster.hp -= damage;
+                const monsterEl = document.querySelector(`.monster[data-id='${monsterId}']`);
+                if (!monsterEl) return;
+                const hitEffect = document.createElement('div');
+                hitEffect.classList.add('hit-effect');
+                monsterEl.appendChild(hitEffect);
+                setTimeout(() => hitEffect.remove(), 200);
+                monsterEl.querySelector('div').textContent = Math.round(monster.hp);
+                if (monster.hp <= 0) monsterDie(monster, monsterEl);
+            }
+            
+            function monsterDie(monster, monsterEl) {
+                let coinGain = 10 + Math.floor(monster.maxHp / 10);
+                if (gameState.coinFeverTimer > 0) coinGain *= 2;
+                gameState.coins += coinGain;
+                gameState.score += monster.maxHp / 100;
+                const monsterRect = monsterEl.getBoundingClientRect(), battleRect = dom.battleArea.getBoundingClientRect();
+                const coinEl = document.createElement('div');
+                coinEl.classList.add('coin-drop');
+                coinEl.innerHTML = `+${coinGain}<span class="coin-icon" style="width:14px;height:14px;line-height:14px;font-size:10px;">C</span>`;
+                coinEl.style.left = `${monsterRect.left - battleRect.left}px`;
+                coinEl.style.top = `${monsterRect.top - battleRect.top}px`;
+                dom.battleArea.appendChild(coinEl);
+                setTimeout(() => coinEl.remove(), 1000);
+                if(monsterEl) {
+                   monsterEl.style.transition = 'transform 0.3s ease-in, opacity 0.3s ease-in';
+                   monsterEl.style.transform = 'scale(0)';
+                   monsterEl.style.opacity = '0';
+                   setTimeout(() => monsterEl.remove(), 300);
+                }
+                updateUI();
+            }
+
+            // --- UI & Event Listeners ---
+            function updateFeverTimersUI() {
+                let timerText = '';
+                if(gameState.coinFeverTimer > 0) {
+                    timerText += `💰コインx2: ${Math.ceil(gameState.coinFeverTimer/1000)}s `;
+                    dom.buyCoinFeverBtn.disabled = true;
+                } else {
+                    dom.buyCoinFeverBtn.disabled = false;
+                }
+
+                if(gameState.speedFeverTimer > 0) {
+                    timerText += `⚡速度x2: ${Math.ceil(gameState.speedFeverTimer/1000)}s`;
+                    dom.buySpeedFeverBtn.disabled = true;
+                } else {
+                    dom.buySpeedFeverBtn.disabled = false;
+                }
+                
+                if (timerText) {
+                    dom.feverTimersEl.style.display = 'block';
+                    dom.feverTimersEl.textContent = timerText;
+                } else {
+                    dom.feverTimersEl.style.display = 'none';
+                }
+            }
+
+            function updateUI() {
+                dom.coinAmountEl.textContent = Math.floor(gameState.coins);
+                dom.slimePriceEl.textContent = calculateSlimePrice();
+                dom.scoreEl.textContent = Math.floor(gameState.score);
+                dom.playerHealthBar.style.width = `${(gameState.playerHealth / gameState.maxPlayerHealth) * 100}%`;
+                dom.playerHealthText.textContent = `${Math.ceil(gameState.playerHealth)} / ${gameState.maxPlayerHealth}`;
+                dom.healthPotionPriceEl.textContent = gameState.store.healthPotion.price;
+                dom.coinFeverPriceEl.textContent = gameState.store.coinFever.price;
+                dom.speedFeverPriceEl.textContent = gameState.store.speedFever.price;
+                dom.attackUpgradePriceEl.textContent = gameState.upgrades.attack.price;
+                dom.attackUpgradeLevelEl.textContent = `Lv.${gameState.upgrades.attack.level}`;
+                dom.regenUpgradePriceEl.textContent = gameState.upgrades.regen.price;
+                dom.regenUpgradeLevelEl.textContent = `Lv.${gameState.upgrades.regen.level}`;
+            }
+
+            function setupEventListeners() {
+                dom.buySlimeBtn.addEventListener('click', () => {
+                    const price = calculateSlimePrice();
+                    if (gameState.coins >= price) { if (addSlime(1, 'standby', null)) { gameState.coins -= price; updateUI(); }
+                    } else { showMessage("コイン不足", "コインが足りません！", "OK"); }
+                });
+                dom.speedBtn.addEventListener('click', () => {
+                    gameState.gameSpeed = (gameState.gameSpeed === 1) ? 2 : 1;
+                    dom.speedBtn.textContent = `${gameState.gameSpeed}x`;
+                    dom.speedBtn.classList.toggle('active', gameState.gameSpeed > 1);
+                });
+                dom.resetBtn.addEventListener('click', () => resetGame(true));
+                dom.buyHealthPotionBtn.addEventListener('click', () => {
+                    const item = gameState.store.healthPotion;
+                    if(gameState.coins >= item.price) { gameState.coins -= item.price; gameState.playerHealth = Math.min(gameState.maxPlayerHealth, gameState.playerHealth + item.amount); updateUI(); }
+                });
+                dom.buyCoinFeverBtn.addEventListener('click', () => {
+                    const item = gameState.store.coinFever;
+                    if(gameState.coins >= item.price && gameState.coinFeverTimer <= 0) { gameState.coins -= item.price; gameState.coinFeverTimer = item.duration; updateUI(); }
+                });
+                dom.buySpeedFeverBtn.addEventListener('click', () => {
+                    const item = gameState.store.speedFever;
+                    if(gameState.coins >= item.price && gameState.speedFeverTimer <= 0) { gameState.coins -= item.price; gameState.speedFeverTimer = item.duration; updateUI(); }
+                });
+                dom.upgradeAttackBtn.addEventListener('click', () => {
+                    const upgrade = gameState.upgrades.attack;
+                    if(gameState.coins >= upgrade.price) { gameState.coins -= upgrade.price; upgrade.level++; upgrade.price = Math.floor(upgrade.price * 1.5); upgrade.multiplier *= 1.2; updateUI(); }
+                });
+                dom.upgradeRegenBtn.addEventListener('click', () => {
+                    const upgrade = gameState.upgrades.regen;
+                     if(gameState.coins >= upgrade.price) { gameState.coins -= upgrade.price; upgrade.level++; upgrade.price = Math.floor(upgrade.price * 1.8); updateUI(); }
+                });
+            }
+            
+            // --- Save/Load/Reset ---
+            function saveGame() {
+                try {
+                    localStorage.setItem('slimeMergeSaveInfinity', JSON.stringify(gameState));
+                } catch (e) { console.error("Could not save game state:", e); }
+            }
+            function loadGame() {
+                try {
+                    const savedState = localStorage.getItem('slimeMergeSaveInfinity');
+                    if (savedState) {
+                        const loadedState = JSON.parse(savedState);
+                        gameState = { ...getNewGameState(), ...loadedState };
+                        gameState.upgrades = { ...getNewGameState().upgrades, ...loadedState.upgrades };
+                        gameState.store = { ...getNewGameState().store, ...loadedState.store };
+                        gameState.monsters = []; // Clear monsters on load to prevent phantom targets
+                        return true;
+                    }
+                } catch (e) { console.error("Could not load game state:", e); }
+                return false;
+            }
+            function resetGame(confirm) {
+                if (confirm) {
+                    showMessage("データリセット", "本当にゲームをリセットしますか？進行状況はすべて失われます。", "はい、リセットします", () => {
+                        localStorage.removeItem('slimeMergeSaveInfinity');
+                        location.reload();
+                    }, true);
+                } else {
+                    localStorage.removeItem('slimeMergeSaveInfinity');
+                    location.reload();
+                }
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
+
